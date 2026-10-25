@@ -63,7 +63,7 @@ export function paginate(tournament, {slotsPerPage=16} = {}) {
 }
 
 /** Produces a backend-neutral display list. Use the exact same list for screen and print. */
-export function layoutPage(page, pageCount, {title='トーナメント表'} = {}) {
+export function layoutPage(page, pageCount, {title='トーナメント表',matchDetails={}} = {}) {
   const shapes=[];
   const text=(x,y,value,size=3.1,extra={})=>shapes.push({type:'text',x,y,value,size,...extra});
   const line=(x1,y1,x2,y2,extra={})=>shapes.push({type:'line',x1,y1,x2,y2,...extra});
@@ -97,7 +97,9 @@ export function layoutPage(page, pageCount, {title='トーナメント表'} = {}
     const x=inputX+dx*(node.depth-page.baseDepth), join=x-dx*.45, y=(a.y+b.y)/2;
     const matchId=node.id;
     line(a.x,a.y,join,a.y,{matchId}); line(b.x,b.y,join,b.y,{matchId}); line(join,a.y,join,b.y,{matchId}); line(join,y,x,y,{matchId,winner:!!node.winner});
-    text(x,y-1.4,node.winner?.name ?? node.id,2.6,{matchId,anchor:'end',maxWidth:dx-2,muted:!node.winner});
+    const detail=matchDetails[node.id];
+    const score=detail?.scoreA!=null&&detail?.scoreB!=null?` ${detail.scoreA}–${detail.scoreB}`:'';
+    text(x,y-1.4,`${node.winner?.name ?? node.id}${score}`,2.6,{matchId,anchor:'end',maxWidth:dx-2,muted:!node.winner});
     nodes.set(node.id,{x,y});
   }
   const footer=page.destination ? `${page.root.id} 勝者 → p.${page.destination}` : `優勝：${page.root.winner?.name ?? '未確定'}`;
@@ -107,9 +109,9 @@ export function layoutPage(page, pageCount, {title='トーナメント表'} = {}
 }
 
 // Conservative truncation: full text remains available through SVG <title>.
-function truncate(value,maxWidth,size) {
+export function truncate(value,maxWidth,size,measure) {
   if(!maxWidth)return value;
-  const widthOf = c => /[\u0020-\u007e]/.test(c) ? size*.65 : size*1.05;
+  const widthOf = c => measure?measure(c,size):/[\u0020-\u007e]/.test(c) ? size*.65 : size*1.05;
   if(Array.from(value).reduce((sum,c)=>sum+widthOf(c),0)<=maxWidth)return value;
   let used=0,out='';
   for(const c of Array.from(value)) {const width=widthOf(c); if(used+width>maxWidth-size*1.1)return out+'…'; out+=c;used+=width;}
@@ -118,11 +120,55 @@ function truncate(value,maxWidth,size) {
 export function renderSVG(scene) {
   const body=scene.shapes.map(s=>s.type==='line'
     ? `<line x1="${s.x1}" y1="${s.y1}" x2="${s.x2}" y2="${s.y2}"${s.matchId ? ` data-match-id="${escapeXML(s.matchId)}"` : ''} stroke="${s.light?'#cbd5e1':s.winner?'#174b36':'#334155'}" stroke-width="${s.winner ? .45 : .22}"/>`
-    : `<text x="${s.x}" y="${s.y}" font-size="${s.size}" text-anchor="${s.anchor??'start'}"${s.matchId ? ` data-match-id="${escapeXML(s.matchId)}"` : ''} fill="${s.muted?'#64748b':'#172a24'}"${s.bold?' font-weight="700"':''}><title>${escapeXML(s.value)}</title>${escapeXML(truncate(s.value,s.maxWidth,s.size))}</text>`).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297" role="img" aria-label="トーナメント表 ${scene.pageNumber}ページ" style="font-family:'Noto Sans CJK JP','Yu Gothic',Meiryo,sans-serif"><rect width="210" height="297" fill="white"/>${body}</svg>`;
+    : `<text x="${s.x}" y="${s.y}" font-size="${s.size}" text-anchor="${s.anchor??'start'}"${s.matchId ? ` data-match-id="${escapeXML(s.matchId)}"` : ''} fill="${s.muted?'#64748b':'#172a24'}"><title>${escapeXML(s.value)}</title>${escapeXML(s.displayValue??truncate(s.value,s.maxWidth,s.size))}</text>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297" role="img" aria-label="トーナメント表 ${scene.pageNumber}ページ" style="font-family:'Tournament Noto','Noto Sans CJK JP','Yu Gothic',Meiryo,sans-serif"><rect width="210" height="297" fill="white"/>${body}</svg>`;
 }
-export function renderTournament(entries,{slotIds,results={},slotsPerPage=16,title}={}) {
+export function renderTournament(entries,{slotIds,results={},slotsPerPage=16,title,matchDetails={}}={}) {
   const tournament=createTournament(entries,results,slotIds), pages=paginate(tournament,{slotsPerPage});
-  const scenes=pages.map(p=>layoutPage(p,pages.length,{title}));
+  const scenes=pages.map(p=>layoutPage(p,pages.length,{title,matchDetails}));
   return {tournament,pages,scenes,svgs:scenes.map(renderSVG)};
+}
+
+/** Match annotations are continued onto A4 pages without truncating their content. */
+export function documentScenes(document,{measure,label=''}={}) {
+  const {tournament,scenes}=renderTournament(document.participants,{slotIds:document.slots,results:document.results,
+    title:document.title,slotsPerPage:document.layoutSettings?.slotsPerPage??16,matchDetails:document.matchDetails});
+  const chunks=[];
+  const wrap=(text,width=188,size=3)=>{
+    const lines=[];let line='';
+    for(const char of String(text)) {
+      if(char==='\n'){lines.push(line);line='';continue;}
+      const trial=line+char;
+      const length=measure?measure(trial,size):Array.from(trial).reduce((sum,c)=>sum+(/[\u0020-\u007e]/.test(c)?size*.65:size*1.05),0);
+      if(line&&length>width){lines.push(line);line=char;}else line=trial;
+    }
+    if(line)lines.push(line);
+    return lines;
+  };
+  if(document.date) chunks.push(...wrap(`開催 ${document.date}`));
+  if(document.notes) chunks.push(...wrap(document.notes));
+  for(const match of tournament.matches) {
+    const detail=document.matchDetails?.[match.id];
+    if(!detail||![detail.venue,detail.scheduledAt,detail.notes,detail.scoreA!=null].some(Boolean))continue;
+    const names=match.children.map(c=>c.winner?.name??`${c.id} 勝者`);
+    chunks.push('',...wrap(`${match.id}　${names.join(' 対 ')}`));
+    const score=detail.scoreA!=null?`${detail.scoreA} 対 ${detail.scoreB}`:'';
+    const date=detail.scheduledAt?new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',dateStyle:'medium',timeStyle:'short'}).format(new Date(detail.scheduledAt)):'';
+    chunks.push(...wrap([date,detail.venue,score,match.winner?`勝者 ${match.winner.name}`:''].filter(Boolean).join(' ／ ')));
+    if(detail.notes)chunks.push(...wrap(detail.notes));
+  }
+  while(chunks.length) {
+    const rows=chunks.splice(0,47),pageNumber=scenes.length+1;
+    scenes.push({width:210,height:297,pageNumber,shapes:[
+      {type:'text',x:10,y:17,value:`${document.title} — 試合情報`,size:4,maxWidth:190},
+      ...rows.map((value,i)=>({type:'text',x:10,y:33+i*5,value,size:3})),
+    ]});
+  }
+  for(const scene of scenes) {
+    scene.shapes=scene.shapes.filter(shape=>!(shape.type==='text'&&shape.y===287&&shape.value.includes('ブラウザー')));
+    for(const shape of scene.shapes)if(shape.type==='text'&&shape.x===200&&shape.y===25)shape.value=`${scene.pageNumber} / ${scenes.length}`;
+    scene.shapes.push({type:'text',x:200,y:292,value:`${label} ${scene.pageNumber}/${scenes.length}`.trim(),size:2.2,anchor:'end',maxWidth:190});
+    for(const shape of scene.shapes) if(shape.type==='text') shape.displayValue=truncate(shape.value,shape.maxWidth,shape.size,measure);
+  }
+  return scenes;
 }

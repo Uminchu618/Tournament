@@ -4,7 +4,7 @@ export const MAX_ENTRANTS = 64;
 export const slotCapacity = count => Math.max(2, 2 ** Math.ceil(Math.log2(Math.max(1, count))));
 
 export function emptyDocument() {
-  return {title:'',date:'',notes:'',participants:[],slots:[null,null],results:{},published:false,version:0,updatedAt:null};
+  return {title:'',date:'',notes:'',participants:[],slots:[null,null],results:{},matchDetails:{},layoutSettings:{slotsPerPage:16},published:false,version:0,updatedAt:null};
 }
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -40,10 +40,76 @@ export function validateDocument(input) {
   }
   const complete=participants.length>=2 && assigned.length===participants.length;
   if (!complete && Object.keys(results).length) throw new Error('組合せが未完成のため、結果を保存できません');
-  if (complete) createTournament(participants,results,slots);
+  const tournament=complete?createTournament(participants,results,slots):null;
+  const details=input.matchDetails ?? {};
+  if (!isObject(details)) throw new Error('試合情報の形式が正しくありません');
+  const matchDetails={};
+  for (const [id,value] of Object.entries(details)) {
+    const match=tournament?.matches.find(m=>m.id===id);
+    if (!match || !isObject(value)) throw new Error('存在しない試合の情報です');
+    const scoreA=value.scoreA ?? null,scoreB=value.scoreB ?? null;
+    if ([scoreA,scoreB].some(x=>x!==null && (!Number.isSafeInteger(x)||x<0||x>999999))) throw new Error('試合の得点は0〜999999の整数で入力してください');
+    if ((scoreA===null)!==(scoreB===null)) throw new Error('試合の得点は両者とも入力してください');
+    if (scoreA!==null && !match.children.every(c=>c.resolved&&c.winner)) throw new Error('試合の対戦者が未確定のため得点を入力できません');
+    const scheduledAt=String(value.scheduledAt ?? '').trim();
+    const venue=String(value.venue ?? '').trim(),matchNotes=String(value.notes ?? '').trim();
+    if (scheduledAt && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(scheduledAt)||!Number.isFinite(Date.parse(scheduledAt)))) throw new Error('試合日時の形式を確認してください');
+    if (venue.length>100 || matchNotes.length>1000) throw new Error('試合情報の文字数が上限を超えています');
+    matchDetails[id]={scoreA,scoreB,scheduledAt,venue,notes:matchNotes};
+  }
+  const slotsPerPage=input.layoutSettings?.slotsPerPage ?? 16;
+  if (![8,16,32].includes(slotsPerPage)) throw new Error('大会の1ページの枠数は8・16・32を指定してください');
   const published=input.published===true;
   if (published && (!title || !complete)) throw new Error('公開には大会名と完成した組合せが必要です');
-  return {title,date,notes,participants,slots,results,published};
+  return {title,date,notes,participants,slots,results,matchDetails,layoutSettings:{slotsPerPage},published};
+}
+
+export function documentContent(input) {
+  const {published,...document}=validateDocument({...input,published:false});
+  return document;
+}
+
+export function validateForPublication(input) {
+  validateDocument({...input,published:true});
+  return documentContent(input);
+}
+
+/** Return the complete invalidation plan before validating submitted results. */
+export function prepareChange(before,input) {
+  const structure=documentContent({...input,results:{},matchDetails:{}});
+  if (!isObject(input.results)||!isObject(input.matchDetails ?? {})) throw new Error('試合情報の形式が正しくありません');
+  const next={...structure,results:{...input.results},matchDetails:structuredClone(input.matchDetails ?? {})};
+  const beforeComplete=before.participants.length>=2&&before.slots.filter(Boolean).length===before.participants.length;
+  const afterComplete=next.participants.length>=2&&next.slots.filter(Boolean).length===next.participants.length;
+  const previous=beforeComplete?createTournament(before.participants,before.results,before.slots).matches:[];
+  const current=afterComplete?createTournament(next.participants,{},next.slots).matches:[];
+  const currentIds=new Set(current.map(m=>m.id));
+  const affected=new Set(),structureChanged=new Set();
+  for (const match of previous) {
+    if (!currentIds.has(match.id)||slotSignature(before.slots,match.id)!==slotSignature(next.slots,match.id)) {
+      affected.add(match.id);structureChanged.add(match.id);
+    }
+    if (before.results[match.id]!==next.results[match.id]) {
+      let round=match.depth,index=Number(match.id.split('-M')[1]);
+      while (round<Math.log2(before.slots.length)) {round++;index=Math.ceil(index/2);affected.add(`R${round}-M${index}`);}
+    }
+  }
+  const confirmations=[];
+  for (const id of affected) {
+    const old=before.matchDetails?.[id];
+    const disappears=!currentIds.has(id);
+    const hasResult=before.results[id]!==undefined||old?.scoreA!=null||old?.scoreB!=null;
+    const hasNotes=structureChanged.has(id)&&!!old?.notes;
+    const hasSchedule=disappears&&!!(old?.scheduledAt||old?.venue);
+    if (hasResult||hasNotes||hasSchedule) confirmations.push(id);
+    delete next.results[id];
+    if (disappears) delete next.matchDetails[id];
+    else if (next.matchDetails[id]) {
+      next.matchDetails[id].scoreA=null;next.matchDetails[id].scoreB=null;
+      if (structureChanged.has(id)) next.matchDetails[id].notes='';
+    }
+  }
+  return {document:documentContent(next),affectedMatches:confirmations.sort()};
 }
 
 function slotSignature(slots, matchId) {

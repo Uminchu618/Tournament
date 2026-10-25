@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tournament-board-production",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist/public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/admin",
+      "/admin/*",
+      "/t/*"
+    ]
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "PUBLIC_POLL_SECONDS": "300",
+    "ACCESS_TEAM_DOMAIN": "sweet-cherry-1bbc.cloudflareaccess.com",
+    "ACCESS_AUD": "7f30a3f13aa7b36a3b1b31ee927a830e8f636edf3d5c020338792b654a45be08"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tournament-board-production",
+      "database_id": "e251cb00-f07f-42e2-8ce2-f2e072195e99",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": [
+      "0 18 * * *"
+    ]
+  }
+}

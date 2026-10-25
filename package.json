@@ -1,1 +1,36 @@
-{"name":"tournament","version":"0.1.0","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test"},"engines":{"node":">=20"}}
+{
+  "name": "tournament",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npm run dev",
+    "dev": "npm run build && node scripts/run-wrangler.mjs dev --ip 127.0.0.1 --port 8787",
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.js",
+    "db:local": "node scripts/run-wrangler.mjs d1 migrations apply tournament-local --local && node scripts/seed-local.mjs",
+    "test:e2e": "playwright test",
+    "cf:setup": "node scripts/cloudflare-setup.mjs",
+    "cf:operator": "node scripts/operator.mjs",
+    "wrangler": "node scripts/run-wrangler.mjs",
+    "backup": "node scripts/backup.mjs",
+    "backup:check": "node scripts/restore-check.mjs",
+    "test:smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "jose": "^6.2.13",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "esbuild": "^0.28.2",
+    "wrangler": "^4.152.0"
+  },
+  "overrides": {
+    "undici": "^7.30.1"
+  }
+}

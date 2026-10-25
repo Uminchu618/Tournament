@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tournament-board-staging",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist/public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/admin",
+      "/admin/*",
+      "/t/*"
+    ]
+  },
+  "vars": {
+    "ENVIRONMENT": "staging",
+    "PUBLIC_POLL_SECONDS": "300",
+    "ACCESS_TEAM_DOMAIN": "sweet-cherry-1bbc.cloudflareaccess.com",
+    "ACCESS_AUD": "10e85a72ffa47d419767ef783c3ece69edbeb25c2cf0746f7de0470278468da0",
+    "E2E_SERVICE_CLIENT_ID": "28bc9e15524a09d278cd977d8a70f643.access"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tournament-board-staging",
+      "database_id": "33203646-7b17-4398-b31c-fff4506a1f6e",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": [
+      "0 18 * * *"
+    ]
+  }
+}

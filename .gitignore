@@ -148,3 +148,9 @@ vite.config.ts.timestamp-*
 # Turbo Repo
 .turbo
 data/
+.wrangler/
+.artifacts/
+.dev.vars
+.dev.vars.*
+playwright-report/
+test-results/

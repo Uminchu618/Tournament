@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
   <title>トーナメント表</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -14,17 +15,13 @@
 
   <main>
     <p id="message" class="message" role="alert" hidden></p>
-    <section id="loginView" class="login-card" hidden>
-      <p class="eyebrow">ORGANIZER ACCESS</p>
-      <h1>運営者ログイン</h1>
-      <p>大会の組合せと結果を編集するには、管理用パスワードを入力してください。</p>
-      <form id="loginForm"><label for="password">パスワード</label><input id="password" type="password" autocomplete="current-password" required><button type="submit">ログイン</button></form>
-    </section>
+    <section id="homeView" class="login-card" hidden><h1>大会組合せ表</h1><p>大会の閲覧には、運営者から共有されたURLを開いてください。</p><a href="/admin">運営者画面へ</a></section>
+    <section id="listView" hidden><div class="hero"><div><p class="eyebrow">ORGANIZER WORKSPACE</p><h1>大会一覧</h1><p id="operatorName"></p></div><button id="createButton" class="primary">大会を作成</button></div><div id="tournamentList" class="tournament-list"></div><button id="moreButton" class="ghost" hidden>さらに表示</button></section>
 
     <div id="appView" hidden>
       <section class="hero">
         <div><p class="eyebrow" id="heroEyebrow">TOURNAMENT BOARD</p><h1 id="heroTitle">大会組合せ表</h1><p id="heroMeta"></p></div>
-        <div class="hero-actions"><span id="saveState" aria-live="polite"></span><button id="saveButton" class="primary" hidden>保存する</button><button id="logoutButton" class="ghost" hidden>ログアウト</button></div>
+        <div class="hero-actions"><span id="saveState" aria-live="polite"></span><button id="saveButton" class="primary" hidden>下書きを保存</button><button id="publishButton" class="secondary" hidden>公開する</button><button id="unpublishButton" class="ghost" hidden>公開を停止</button><a id="publicLink" target="_blank" rel="noopener" hidden>共有画面を開く</a><button id="refreshButton" class="ghost" hidden>最新に更新</button><button id="reloadButton" class="ghost" hidden>保存版を再読込</button><button id="logoutButton" class="ghost" hidden>ログアウト</button></div>
       </section>
       <nav id="mobileSections" class="mobile-sections" aria-label="画面の切り替え" hidden>
         <button type="button" id="showEditor" aria-controls="editor" aria-pressed="true">編集</button>
@@ -36,7 +33,7 @@
           <label for="title">大会名 <span class="required">必須</span></label><input id="title" maxlength="100" placeholder="例：秋季大会">
           <label for="date">開催日・期間</label><input id="date" maxlength="100" placeholder="例：2026年11月1日〜3日">
           <label for="notes">注記</label><textarea id="notes" maxlength="1000" rows="3" placeholder="会場や大会に関する案内"></textarea>
-          <label class="check-row"><input id="published" type="checkbox"><span>保存した内容を一般公開する</span></label>
+          <p class="help">下書きの保存では公開内容は変わりません。確認後に「公開する」を押してください。</p>
 
           <div class="section-heading spaced"><div><p class="eyebrow">ENTRANTS</p><h2>参加者 <span id="entrantCount"></span></h2></div></div>
           <p class="help">１行に１名ずつ入力して追加します。追加後、全員を組合せの枠に配置してください。</p>
@@ -48,13 +45,13 @@
           <p class="help" id="slotHelp"></p>
           <div id="slotList" class="slot-list"></div>
 
-          <div class="section-heading spaced"><div><p class="eyebrow">RESULTS</p><h2>勝者を選択</h2></div></div>
-          <p class="help">得点の入力は不要です。勝者を訂正すると、後続の確定結果を確認して取り消します。</p>
+          <div class="section-heading spaced"><div><p class="eyebrow">RESULTS</p><h2>試合情報・結果</h2></div></div>
+          <p class="help">得点から勝者は自動判定しません。日時は日本時間です。結果の訂正時は、影響する勝者・得点の取消を確認します。</p>
           <div id="matchList" class="match-list"></div>
         </aside>
 
         <section id="previewPanel" class="preview-panel" data-zoom="fit">
-          <div class="preview-toolbar"><div><p class="eyebrow">PREVIEW</p><h2>トーナメント表</h2><p id="pageSummary" class="help"></p></div><div class="preview-actions"><label for="capacity">１ページの枠数<select id="capacity"><option value="8">8枠</option><option value="16" selected>16枠</option><option value="32">32枠</option></select></label><button id="zoomButton" type="button" class="ghost" aria-pressed="false" aria-controls="pages">拡大して見る</button><button id="printButton" class="secondary">印刷・PDF保存</button></div></div>
+          <div class="preview-toolbar"><div><p class="eyebrow">PREVIEW</p><h2>トーナメント表</h2><p id="pageSummary" class="help"></p></div><div class="preview-actions"><label for="capacity">１ページの枠数<select id="capacity"><option value="8">8枠</option><option value="16" selected>16枠</option><option value="32">32枠</option></select></label><button id="zoomButton" type="button" class="ghost" aria-pressed="false" aria-controls="pages">拡大して見る</button><button id="printButton" class="secondary">印刷する</button><button id="pdfButton" class="primary">PDFをダウンロード</button></div></div>
           <p id="previewHint" class="preview-hint">文字が小さい場合は「拡大して見る」を押すと、左右にスクロールできます。</p>
           <div id="previewEmpty" class="empty-state"></div>
           <div id="pages" class="pages"></div>
@@ -62,6 +59,6 @@
       </div>
     </div>
   </main>
-  <script type="module" src="/src/app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

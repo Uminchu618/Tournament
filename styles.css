@@ -3,6 +3,14 @@
   color: #1e302b;
   background: #f3f5f2;
 }
+.tournament-list { display: grid; gap: 14px; }
+.tournament-card { padding: 20px; border: 1px solid #d8e4d9; border-radius: 10px; background: white; }
+.tournament-card h2 { margin: 0 0 8px; overflow-wrap: anywhere; }
+.tournament-card a { color: #205b38; }
+.match-fields { display: grid; gap: 8px; margin-top: 10px; }
+.match-fields label { font-size: 12px; color: #50735c; display: grid; gap: 4px; }
+.score-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#publicLink { color: #205b38; overflow-wrap: anywhere; }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 0; }
