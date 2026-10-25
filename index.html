@@ -26,7 +26,11 @@
         <div><p class="eyebrow" id="heroEyebrow">TOURNAMENT BOARD</p><h1 id="heroTitle">大会組合せ表</h1><p id="heroMeta"></p></div>
         <div class="hero-actions"><span id="saveState" aria-live="polite"></span><button id="saveButton" class="primary" hidden>保存する</button><button id="logoutButton" class="ghost" hidden>ログアウト</button></div>
       </section>
-      <div class="workspace">
+      <nav id="mobileSections" class="mobile-sections" aria-label="画面の切り替え" hidden>
+        <button type="button" id="showEditor" aria-controls="editor" aria-pressed="true">編集</button>
+        <button type="button" id="showPreview" aria-controls="previewPanel" aria-pressed="false">表を見る</button>
+      </nav>
+      <div id="workspace" class="workspace" data-mobile-view="edit">
         <aside id="editor" class="editor" hidden>
           <div class="section-heading"><div><p class="eyebrow">SETTINGS</p><h2>大会情報</h2></div></div>
           <label for="title">大会名 <span class="required">必須</span></label><input id="title" maxlength="100" placeholder="例：秋季大会">
@@ -49,8 +53,9 @@
           <div id="matchList" class="match-list"></div>
         </aside>
 
-        <section class="preview-panel">
-          <div class="preview-toolbar"><div><p class="eyebrow">PREVIEW</p><h2>トーナメント表</h2><p id="pageSummary" class="help"></p></div><div class="preview-actions"><label for="capacity">１ページの枠数</label><select id="capacity"><option value="8">8枠</option><option value="16" selected>16枠</option><option value="32">32枠</option></select><button id="printButton" class="secondary">印刷・PDF保存</button></div></div>
+        <section id="previewPanel" class="preview-panel" data-zoom="fit">
+          <div class="preview-toolbar"><div><p class="eyebrow">PREVIEW</p><h2>トーナメント表</h2><p id="pageSummary" class="help"></p></div><div class="preview-actions"><label for="capacity">１ページの枠数<select id="capacity"><option value="8">8枠</option><option value="16" selected>16枠</option><option value="32">32枠</option></select></label><button id="zoomButton" type="button" class="ghost" aria-pressed="false" aria-controls="pages">拡大して見る</button><button id="printButton" class="secondary">印刷・PDF保存</button></div></div>
+          <p id="previewHint" class="preview-hint">文字が小さい場合は「拡大して見る」を押すと、左右にスクロールできます。</p>
           <div id="previewEmpty" class="empty-state"></div>
           <div id="pages" class="pages"></div>
         </section>

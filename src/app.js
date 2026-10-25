@@ -161,6 +161,7 @@ function renderPreview() {
 function render() {
   $('#appView').hidden=false;
   $('#appView').classList.toggle('public-only',!admin);
+  $('#mobileSections').hidden=!admin;
   $('#editor').hidden=!admin;
   $('#saveButton').hidden=!admin;
   $('#logoutButton').hidden=!admin;
@@ -225,6 +226,20 @@ $('#addParticipants').addEventListener('click',()=>{
   if (applyStructure(next)) {$('#newParticipants').value='';notify('');}
 });
 $('#capacity').addEventListener('change',renderPreview);
+function setMobileView(view) {
+  $('#workspace').dataset.mobileView=view;
+  $('#showEditor').setAttribute('aria-pressed',String(view==='edit'));
+  $('#showPreview').setAttribute('aria-pressed',String(view==='preview'));
+}
+$('#showEditor').addEventListener('click',()=>setMobileView('edit'));
+$('#showPreview').addEventListener('click',()=>setMobileView('preview'));
+$('#zoomButton').addEventListener('click',()=>{
+  const actual=$('#previewPanel').dataset.zoom!=='actual';
+  $('#previewPanel').dataset.zoom=actual?'actual':'fit';
+  $('#zoomButton').setAttribute('aria-pressed',String(actual));
+  $('#zoomButton').textContent=actual?'全体を表示':'拡大して見る';
+  $('#previewHint').textContent=actual?'ページを左右にスクロールして細部を確認できます。':'文字が小さい場合は「拡大して見る」を押すと、左右にスクロールできます。';
+});
 $('#printButton').addEventListener('click',()=>window.print());
 $('#saveButton').addEventListener('click',async()=>{
   if (busy)return;
