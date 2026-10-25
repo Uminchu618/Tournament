@@ -1,6 +1,7 @@
 import {createTournament} from './engine.js';
 
 export const MAX_ENTRANTS = 64;
+export const MAX_DIVISIONS = 16;
 export const slotCapacity = count => Math.max(2, 2 ** Math.ceil(Math.log2(Math.max(1, count))));
 
 export function emptyDocument() {
@@ -9,7 +10,7 @@ export function emptyDocument() {
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-export function validateDocument(input) {
+function validateBracket(input) {
   if (!isObject(input)) throw new Error('大会データの形式が正しくありません');
   const title=String(input.title ?? '').trim();
   const date=String(input.date ?? '').trim();
@@ -20,8 +21,14 @@ export function validateDocument(input) {
     if (!isObject(entry) || !/^[a-zA-Z0-9_-]{1,80}$/.test(entry.id) || typeof entry.name !== 'string' || !entry.name.trim() || entry.name.length > 100) {
       throw new Error(`${index+1}番目の参加者を確認してください`);
     }
-    return {id:entry.id,name:entry.name.trim()};
+    const organization=String(entry.organization ?? '').trim();
+    const seed=entry.seed ?? null;
+    if (organization.length>100) throw new Error('参加者の団体名は100文字以内で入力してください');
+    if (seed!==null && (!Number.isInteger(seed)||seed<1||seed>Math.min(4,input.participants.length))) throw new Error('参加者のシードは参加組数以内の1〜4を指定してください');
+    return {id:entry.id,name:entry.name.trim(),organization,seed};
   });
+  const seeds=participants.map(p=>p.seed).filter(x=>x!==null);
+  if (new Set(seeds).size!==seeds.length) throw new Error('同じシード順位を複数の参加者に指定できません');
   const ids=new Set(participants.map(x=>x.id));
   if (ids.size !== participants.length) throw new Error('参加者IDが重複しています');
   const capacity=slotCapacity(participants.length);
@@ -64,6 +71,36 @@ export function validateDocument(input) {
   return {title,date,notes,participants,slots,results,matchDetails,layoutSettings:{slotsPerPage},published};
 }
 
+export function emptyDivision(id='main',name='部門1') {
+  const {participants,slots,results,matchDetails,layoutSettings}=emptyDocument();
+  return {id,name,type:'individual',participants,slots,results,matchDetails,layoutSettings};
+}
+
+/** Old saved revisions remain readable; convert only when an editor saves them. */
+export function asEvent(input) {
+  if (input.divisions!==undefined) return structuredClone(input);
+  const {title,date,notes,participants,slots,results,matchDetails,layoutSettings}=structuredClone(input);
+  return {title,date,notes,divisions:[{id:'main',name:'部門1',type:'individual',participants,slots,results,matchDetails:matchDetails??{},layoutSettings:layoutSettings??{slotsPerPage:16}}]};
+}
+
+export const bracketComplete = bracket => bracket.participants.length>=2 && bracket.slots.filter(Boolean).length===bracket.participants.length;
+
+export function validateDocument(input) {
+  if (!isObject(input)||input.divisions===undefined) return validateBracket(input);
+  const base=validateBracket({...emptyDocument(),title:input.title,date:input.date,notes:input.notes});
+  if (!Array.isArray(input.divisions)||!input.divisions.length||input.divisions.length>MAX_DIVISIONS) throw new Error('大会の部門は1〜16件で指定してください');
+  const divisions=input.divisions.map(division=>{
+    if (!isObject(division)||!/^[a-zA-Z0-9_-]{1,80}$/.test(division.id)||typeof division.name!=='string'||division.name.length>100) throw new Error('大会の部門ID・部門名を確認してください');
+    if (!['individual','team'].includes(division.type)) throw new Error('大会の部門種別を確認してください');
+    const {participants,slots,results,matchDetails,layoutSettings}=validateBracket({...division,title:'',date:'',notes:'',published:false});
+    return {id:division.id,name:division.name.trim(),type:division.type,participants,slots,results,matchDetails,layoutSettings};
+  });
+  if (new Set(divisions.map(d=>d.id)).size!==divisions.length) throw new Error('大会の部門IDが重複しています');
+  const published=input.published===true;
+  if (published&&(!base.title||divisions.some(d=>!d.name||!bracketComplete(d)))) throw new Error('公開には大会名・部門名と、すべての部門の完成した組合せが必要です');
+  return {title:base.title,date:base.date,notes:base.notes,divisions,published};
+}
+
 export function documentContent(input) {
   const {published,...document}=validateDocument({...input,published:false});
   return document;
@@ -76,6 +113,30 @@ export function validateForPublication(input) {
 
 /** Return the complete invalidation plan before validating submitted results. */
 export function prepareChange(before,input) {
+  if (!isObject(input)) throw new Error('大会データの形式が正しくありません');
+  if (before.divisions!==undefined||input?.divisions!==undefined) return prepareEventChange(asEvent(before),asEvent(input));
+  return prepareBracketChange(before,input);
+}
+
+function prepareEventChange(before,input) {
+  const affectedMatches=[];
+  if (!Array.isArray(input.divisions)) throw new Error('大会の部門を確認してください');
+  const divisions=input.divisions.map(division=>{
+    if (!isObject(division)) throw new Error('大会の部門を確認してください');
+    const previous=before.divisions.find(d=>d.id===division.id);
+    if (!previous) return division;
+    const change=prepareBracketChange(previous,division);
+    affectedMatches.push(...change.affectedMatches.map(id=>`${division.id}/${id}`));
+    return {...division,...change.document};
+  });
+  for (const removed of before.divisions.filter(d=>!divisions.some(next=>next.id===d.id))) {
+    const ids=new Set([...Object.keys(removed.results),...Object.keys(removed.matchDetails)]);
+    for (const id of ids) affectedMatches.push(`${removed.id}/${id}`);
+  }
+  return {document:documentContent({...input,divisions}),affectedMatches:affectedMatches.sort()};
+}
+
+function prepareBracketChange(before,input) {
   const structure=documentContent({...input,results:{},matchDetails:{}});
   if (!isObject(input.results)||!isObject(input.matchDetails ?? {})) throw new Error('試合情報の形式が正しくありません');
   const next={...structure,results:{...input.results},matchDetails:structuredClone(input.matchDetails ?? {})};

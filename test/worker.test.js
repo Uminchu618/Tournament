@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
 import worker from '../src/worker.js';
-import {emptyDocument} from '../src/model.js';
+import {emptyDocument,asEvent} from '../src/model.js';
 import {cleanup} from '../src/repository.js';
 
 const migration=await readFile(new URL('../migrations/0001_initial.sql',import.meta.url),'utf8');
@@ -124,5 +124,26 @@ test('公開版と編集版は定期整理で消さず、古い中間版だけ�
   await cleanup(f.DB);
   assert.equal(f.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM tournament_revisions').get().n,2);
   assert.equal((await f.api(`/api/public/tournaments/${record.slug}`)).status,200);
+  f.DB.sqlite.close();
+});
+
+test('部門別の結果を永続化し、取消確認と公開版を大会単位で管理する',async()=>{
+  const f=fixture();let record=(await f.create()).body;
+  const event=asEvent({...bracket(),results:{'R1-M1':'p1','R1-M2':'p3','R2-M1':'p1'}});
+  event.divisions[0].participants[0].organization='城南中学校';
+  event.divisions.push({...structuredClone(event.divisions[0]),id:'team',name:'団体戦',type:'team'});
+  record=(await save(f,record,event)).body;
+  assert.equal(record.document.divisions.length,2);
+  record=(await publish(f,record)).body;
+  const changed=structuredClone(record.document);changed.divisions[0].results['R1-M1']='p2';
+  const rejected=await save(f,record,changed);
+  assert.equal(rejected.status,409);assert.deepEqual(rejected.body.affectedMatches,['main/R2-M1']);
+  const accepted=await save(f,record,changed,{acknowledgedMatches:['main/R2-M1']});
+  assert.equal(accepted.status,200);
+  assert.equal(accepted.body.document.divisions[0].results['R2-M1'],undefined);
+  assert.equal(accepted.body.document.divisions[1].results['R2-M1'],'p1');
+  const visible=(await f.api(`/api/public/tournaments/${record.slug}`)).body.document;
+  assert.equal(visible.divisions[0].results['R2-M1'],'p1');
+  assert.equal(visible.divisions[0].participants[0].organization,'城南中学校');
   f.DB.sqlite.close();
 });

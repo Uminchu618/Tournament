@@ -15,7 +15,7 @@ async function create(request,n){
 async function publish(request,record){return api(request,`/api/admin/tournaments/${record.id}/publish`,{mutationId:crypto.randomUUID(),expectedLockVersion:record.lockVersion,targetRevision:record.draftRevision});}
 test.afterAll(async()=>{await mkdir('.artifacts',{recursive:true});await writeFile('.artifacts/e2e-created.json',JSON.stringify(ids));});
 
-test('画面で大会作成、手動配置、得点・会場入力、下書き保存、公開、直接PDFを出力する',async({page,request})=>{
+test('画面で大会作成、名簿順の配置と手動調整、得点・会場入力、公開、直接PDFを出力する',async({page,request})=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto('/admin');
   await page.getByRole('button',{name:'大会を作成',exact:true}).click();
@@ -24,12 +24,17 @@ test('画面で大会作成、手動配置、得点・会場入力、下書き�
   await page.getByLabel('大会名',{exact:false}).fill('E2E秋季大会');
   await page.locator('#date').fill('2026年11月1日');
   await page.locator('#notes').fill('得点と日時の保存を確認');
-  await page.locator('#newParticipants').fill('東京チーム\n大阪チーム\n福岡チーム');
-  await page.getByRole('button',{name:'参加者を追加',exact:true}).click();
+  await page.locator('#newParticipants').fill('城南中学校 田中圭太\n城北中学校 佐藤健太\n福岡中学校 鈴木悠斗\n札幌中学校 山田太郎');
+  await page.getByRole('button',{name:'追加して組合せを作成',exact:true}).click();
   const participants=(await (await request.get(`/api/admin/tournaments/${id}`)).json()).document.participants;
   expect(participants).toHaveLength(0);
   const options=await page.getByRole('combobox',{name:'枠 1の参加者',exact:true}).locator('option').evaluateAll(nodes=>nodes.filter(x=>x.value).map(x=>x.value));
-  for(let i=0;i<3;i++)await page.getByRole('combobox',{name:`枠 ${i+1}の参加者`,exact:true}).selectOption(options[i]);
+  for(let i=0;i<4;i++)await expect(page.getByRole('combobox',{name:`枠 ${i+1}の参加者`,exact:true})).toHaveValue(options[i]);
+  await expect(page.locator('#pendingList')).toContainText('全員の配置が完了');
+  await page.getByRole('combobox',{name:'枠 1の参加者',exact:true}).selectOption('');
+  await expect(page.locator('#pendingList')).toContainText('城南中学校 田中圭太');
+  await page.getByRole('button',{name:'未配置だけ空き枠へ入れる',exact:true}).click();
+  await page.getByRole('button',{name:'3 試合結果',exact:true}).click();
   await page.getByRole('spinbutton',{name:'R1-M1 左の得点',exact:true}).fill('3');
   await page.getByRole('spinbutton',{name:'R1-M1 右の得点',exact:true}).fill('2');
   await page.getByLabel('R1-M1 開始日時（日本時間）',{exact:true}).fill('2026-11-01T09:00');
@@ -39,7 +44,7 @@ test('画面で大会作成、手動配置、得点・会場入力、下書き�
   await page.getByRole('button',{name:'下書きを保存',exact:true}).click();
   await expect(page.locator('#message')).toContainText('下書きを保存しました');
   let record=await (await request.get(`/api/admin/tournaments/${id}`)).json();
-  expect(record.document.matchDetails['R1-M1']).toMatchObject({scoreA:3,scoreB:2,venue:'第1会場',notes:'日本語の試合注記'});
+  expect(record.document.divisions[0].matchDetails['R1-M1']).toMatchObject({scoreA:3,scoreB:2,venue:'第1会場',notes:'日本語の試合注記'});
   expect((await request.get(`/api/public/tournaments/${record.slug}`)).status()).toBe(404);
   page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'公開する',exact:true}).click();
   await expect(page.locator('#message')).toContainText('公開しました');
@@ -102,4 +107,57 @@ test('64組の表と日本語PDFを生成し、スマートフォンで横はみ
 test('秘密ファイルと一般向け大会一覧を配信しない',async({request})=>{
   for(const path of ['/.env','/wrangler.staging.json','/src/worker.js','/api/public/tournaments','/api/missing'])expect((await request.get(path)).status()).toBe(404);
   expect((await request.get('/api/config')).ok()).toBe(true);
+});
+
+test('1大会の個人戦・団体戦を切り替え、シードと名簿、結果、公開PDFを保持する',async({page,request})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto('/admin');await page.getByRole('button',{name:'大会を作成',exact:true}).click();
+  await expect(page).toHaveURL(/\/admin\/tournaments\//);
+  const id=new URL(page.url()).pathname.split('/').at(-1);ids.push(id);
+  await page.getByLabel('大会名',{exact:false}).fill('秋季剣道大会');
+  await page.getByLabel('部門名',{exact:false}).fill('中学生・個人戦');
+  await page.locator('#newParticipants').fill('城南中学校 田中圭太\n城北中学校 佐藤健太\n田中道場 鈴木悠斗\n中央中学校 山田太郎\n城南中学校 高橋一郎');
+  await page.getByRole('button',{name:'追加して組合せを作成',exact:true}).click();
+  await expect(page.locator('#slotHelp')).toContainText('5組中 5組を配置済み');
+  await page.getByRole('button',{name:'1 名簿',exact:true}).click();
+  await page.getByLabel('1番目のシード',{exact:true}).selectOption('1');
+  await page.getByLabel('2番目のシード',{exact:true}).selectOption('2');
+  await expect(page.locator('#participantList')).toContainText('配置済み：枠 8');
+  await page.getByRole('button',{name:'部門を追加',exact:true}).click();
+  await page.getByLabel('部門名',{exact:false}).fill('小学生・団体戦');
+  await page.getByLabel('種別',{exact:true}).selectOption('team');
+  await expect(page.locator('#teamHelp')).toBeVisible();
+  await page.locator('#newParticipants').fill('城南道場 Aチーム\n城北道場 Bチーム');
+  await page.getByRole('button',{name:'追加して組合せを作成',exact:true}).click();
+  await page.getByRole('button',{name:'3 試合結果',exact:true}).click();
+  const teamWinner=await page.getByRole('combobox',{name:'R1-M1の勝者',exact:true}).locator('option').nth(1).getAttribute('value');
+  await page.getByRole('combobox',{name:'R1-M1の勝者',exact:true}).selectOption(teamWinner);
+  await page.getByRole('button',{name:'下書きを保存',exact:true}).click();
+  await expect(page.locator('#message')).toContainText('下書きを保存しました');
+  let record=await (await request.get(`/api/admin/tournaments/${id}`)).json();
+  expect(record.document.divisions).toHaveLength(2);
+  expect(record.document.divisions[0].participants[0]).toMatchObject({organization:'城南中学校',name:'田中圭太',seed:1});
+  expect(record.document.divisions[0].results).toEqual({});
+  expect(record.document.divisions[1].results['R1-M1']).toBe(teamWinner);
+  await page.reload();
+  await page.locator('#divisionTabs').getByRole('button',{name:/中学生・個人戦/}).click();
+  await expect(page.locator('#pages')).toContainText('城南中学校');
+  await expect(page.getByRole('button',{name:'印刷する',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'1 名簿',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.screenshot({path:'.artifacts/divisions-roster-mobile.png',fullPage:true});
+  await page.getByRole('button',{name:'2 組合せ',exact:true}).click();
+  await page.screenshot({path:'.artifacts/divisions-placement-mobile.png',fullPage:true});
+  page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'公開する',exact:true}).click();
+  await expect(page.locator('#message')).toContainText('公開しました');
+  await page.goto(`/t/${record.slug}`);
+  await expect(page.locator('#divisionTabs button')).toHaveCount(2);
+  await page.locator('#divisionTabs').getByRole('button',{name:/小学生・団体戦/}).click();
+  await expect(page.locator('#pages')).toContainText('城南道場 Aチーム');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await expect(page.getByRole('button',{name:'PDFをダウンロード',exact:true})).toBeEnabled({timeout:60_000});
+  const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'PDFをダウンロード',exact:true}).click();
+  expect((await downloaded).suggestedFilename()).toContain('小学生・団体戦');
+  expect(errors).toEqual([]);
 });

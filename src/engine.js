@@ -2,6 +2,7 @@
 export const PAGE = Object.freeze({width:210,height:297,margin:10});
 const powerOfTwo = n => 2 ** Math.ceil(Math.log2(n));
 const escapeXML = s => String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+const entrantLabel = entry => entry ? [entry.organization,entry.name].filter(Boolean).join(' ') : '';
 
 /** Every bracket position is assigned by the organizer. null denotes an empty position. */
 export function createTournament(entries, results = {}, slotIds) {
@@ -81,9 +82,10 @@ export function layoutPage(page, pageCount, {title='トーナメント表',match
     const y=top+i*rowStep;
     nodes.set(node.id,{x:inputX,y});
     const source=page.sources[page.inputs.indexOf(node)];
-    const label=node.depth ? node.winner?.name ?? `${node.id} 勝者` : node.entrant.name;
+    const entry=node.depth?node.winner:node.entrant;
+    const label=entry?.name ?? `${node.id} 勝者`;
     text(10,y-1,label,3.1,{maxWidth:51,muted:!node.winner});
-    text(10,y+2.2,source ? `p.${source} / ${node.id}` : `枠 ${node.position}`,2.1,{muted:true});
+    text(10,y+2.2,[entry?.organization,source ? `p.${source} / ${node.id}` : `枠 ${node.position}`,entry?.seed?`第${entry.seed}シード`:''].filter(Boolean).join(' ／ '),2.1,{muted:true,maxWidth:51});
     line(10,y+3.5,inputX,y+3.5,{light:true});
   });
   for(const node of page.matches) {
@@ -102,7 +104,7 @@ export function layoutPage(page, pageCount, {title='トーナメント表',match
     text(x,y-1.4,`${node.winner?.name ?? node.id}${score}`,2.6,{matchId,anchor:'end',maxWidth:dx-2,muted:!node.winner});
     nodes.set(node.id,{x,y});
   }
-  const footer=page.destination ? `${page.root.id} 勝者 → p.${page.destination}` : `優勝：${page.root.winner?.name ?? '未確定'}`;
+  const footer=page.destination ? `${page.root.id} 勝者 → p.${page.destination}` : `優勝：${entrantLabel(page.root.winner)||'未確定'}`;
   text(10,280,footer,3.2,{bold:true,maxWidth:190});
   text(10,287,'A4 縦 / 100% / 余白なし・ブラウザーのヘッダーとフッターはオフ',2.3,{muted:true});
   return {width:PAGE.width,height:PAGE.height,pageNumber:page.number,shapes};
@@ -150,11 +152,11 @@ export function documentScenes(document,{measure,label=''}={}) {
   for(const match of tournament.matches) {
     const detail=document.matchDetails?.[match.id];
     if(!detail||![detail.venue,detail.scheduledAt,detail.notes,detail.scoreA!=null].some(Boolean))continue;
-    const names=match.children.map(c=>c.winner?.name??`${c.id} 勝者`);
+    const names=match.children.map(c=>entrantLabel(c.winner)||`${c.id} 勝者`);
     chunks.push('',...wrap(`${match.id}　${names.join(' 対 ')}`));
     const score=detail.scoreA!=null?`${detail.scoreA} 対 ${detail.scoreB}`:'';
     const date=detail.scheduledAt?new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',dateStyle:'medium',timeStyle:'short'}).format(new Date(detail.scheduledAt)):'';
-    chunks.push(...wrap([date,detail.venue,score,match.winner?`勝者 ${match.winner.name}`:''].filter(Boolean).join(' ／ ')));
+    chunks.push(...wrap([date,detail.venue,score,match.winner?`勝者 ${entrantLabel(match.winner)}`:''].filter(Boolean).join(' ／ ')));
     if(detail.notes)chunks.push(...wrap(detail.notes));
   }
   while(chunks.length) {

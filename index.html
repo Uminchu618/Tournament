@@ -23,36 +23,59 @@
         <div><p class="eyebrow" id="heroEyebrow">TOURNAMENT BOARD</p><h1 id="heroTitle">大会組合せ表</h1><p id="heroMeta"></p></div>
         <div class="hero-actions"><span id="saveState" aria-live="polite"></span><button id="saveButton" class="primary" hidden>下書きを保存</button><button id="publishButton" class="secondary" hidden>公開する</button><button id="unpublishButton" class="ghost" hidden>公開を停止</button><a id="publicLink" target="_blank" rel="noopener" hidden>共有画面を開く</a><button id="refreshButton" class="ghost" hidden>最新に更新</button><button id="reloadButton" class="ghost" hidden>保存版を再読込</button><button id="logoutButton" class="ghost" hidden>ログアウト</button></div>
       </section>
+      <section class="division-bar" aria-label="部門の切り替え"><div><h2>部門・トーナメント</h2><p class="help">大会内の部門を選んで、名簿・組合せ・結果を確認します。</p></div><div id="divisionTabs" class="division-tabs"></div><button id="addDivision" class="secondary" type="button" hidden>部門を追加</button></section>
       <nav id="mobileSections" class="mobile-sections" aria-label="画面の切り替え" hidden>
         <button type="button" id="showEditor" aria-controls="editor" aria-pressed="true">編集</button>
         <button type="button" id="showPreview" aria-controls="previewPanel" aria-pressed="false">表を見る</button>
       </nav>
       <div id="workspace" class="workspace" data-mobile-view="edit">
         <aside id="editor" class="editor" hidden>
-          <div class="section-heading"><div><p class="eyebrow">SETTINGS</p><h2>大会情報</h2></div></div>
-          <label for="title">大会名 <span class="required">必須</span></label><input id="title" maxlength="100" placeholder="例：秋季大会">
-          <label for="date">開催日・期間</label><input id="date" maxlength="100" placeholder="例：2026年11月1日〜3日">
-          <label for="notes">注記</label><textarea id="notes" maxlength="1000" rows="3" placeholder="会場や大会に関する案内"></textarea>
-          <p class="help">下書きの保存では公開内容は変わりません。確認後に「公開する」を押してください。</p>
-
-          <div class="section-heading spaced"><div><p class="eyebrow">ENTRANTS</p><h2>参加者 <span id="entrantCount"></span></h2></div></div>
-          <p class="help">１行に１名ずつ入力して追加します。追加後、全員を組合せの枠に配置してください。</p>
-          <textarea id="newParticipants" rows="3" placeholder="参加者A&#10;参加者B"></textarea>
-          <button id="addParticipants" class="secondary">参加者を追加</button>
-          <div id="participantList" class="participant-list"></div>
-
-          <div class="section-heading spaced"><div><p class="eyebrow">BRACKET</p><h2>組合せを指定</h2></div></div>
-          <p class="help" id="slotHelp"></p>
-          <div id="slotList" class="slot-list"></div>
-
-          <div class="section-heading spaced"><div><p class="eyebrow">RESULTS</p><h2>試合情報・結果</h2></div></div>
-          <p class="help">得点から勝者は自動判定しません。日時は日本時間です。結果の訂正時は、影響する勝者・得点の取消を確認します。</p>
-          <div id="matchList" class="match-list"></div>
+          <details class="event-settings" open><summary>大会情報を編集</summary>
+            <label for="title">大会名 <span class="required">必須</span></label><input id="title" maxlength="100" placeholder="例：秋季剣道大会">
+            <label for="date">開催日・期間</label><input id="date" maxlength="100" placeholder="例：2026年11月1日">
+            <label for="notes">注記</label><textarea id="notes" maxlength="1000" rows="2" placeholder="大会全体への案内"></textarea>
+          </details>
+          <div class="division-settings">
+            <label for="divisionName">部門名 <span class="required">必須</span></label><input id="divisionName" maxlength="100" placeholder="例：中学生男子・個人戦">
+            <label for="divisionType">種別</label><select id="divisionType"><option value="individual">個人戦</option><option value="team">団体戦（チーム単位）</option></select>
+            <p id="teamHelp" class="help" hidden>チーム同士の組合せを作成します。先鋒・次鋒・中堅・副将・大将の登録や集計は今後の対応です。</p>
+            <button id="removeDivision" class="ghost" type="button">この部門を削除</button>
+          </div>
+          <p class="help">大会内の全部門をまとめて保存・公開します。公開前に全員の配置を完了してください。</p>
+          <nav class="workflow" aria-label="トーナメント作成の手順">
+            <button type="button" data-step="roster" aria-pressed="true">1 名簿</button>
+            <button type="button" data-step="placement" aria-pressed="false">2 組合せ</button>
+            <button type="button" data-step="results" aria-pressed="false">3 試合結果</button>
+          </nav>
+          <section data-step-panel="roster">
+            <div class="section-heading"><h2>参加者 <span id="entrantCount"></span></h2></div>
+            <label for="newParticipants">名簿を貼り付ける</label>
+            <p class="help" id="rosterHelp">1行に1組。個人戦は「城南中学校 田中圭太」のように団体名と氏名を空白で区切ります。タブ・カンマ区切りや、名前だけでも登録できます。団体戦は1行に1チーム名を入力します。</p>
+            <textarea id="newParticipants" rows="5" aria-describedby="rosterHelp" placeholder="城南中学校 田中圭太&#10;城北中学校 佐藤健太&#10;田中道場 鈴木悠斗"></textarea>
+            <button id="addParticipants" class="primary" type="button">追加して組合せを作成</button>
+            <p class="help">名簿の順番で組合せを作成します。追加時は既存の手動配置も作り直します。シードを指定した参加者だけ所定の位置へ移動します。</p>
+            <details class="seed-guide"><summary>シードと不戦勝の決め方</summary><p class="help">シードは任意で第1〜第4まで、各順位1組です。第1・第2は決勝まで、第3・第4を含む4組は準決勝まで対戦しない位置へ配置します（4組以上の場合）。不戦勝はシード順位の高い順に割り当て、残りは表の中で分散させます。シード以外の参加者は名簿の順番を保ちます。シードの変更時は組合せを作り直します。</p></details>
+            <div id="participantList" class="participant-list"></div>
+          </section>
+          <section data-step-panel="placement" hidden>
+            <div class="section-heading"><h2>配置を確認・調整</h2></div>
+            <p class="help" id="slotHelp" aria-live="polite"></p>
+            <progress id="placementProgress" aria-label="参加者の配置進捗" max="1" value="0"></progress>
+            <p id="pendingList" class="help"></p>
+            <div class="placement-actions"><button id="fillSlots" type="button" class="secondary">未配置だけ空き枠へ入れる</button><button id="rebuildSlots" type="button" class="ghost">名簿順で作り直す</button></div>
+            <p class="help">隣り合う2枠が対戦相手です。配置済みの参加者を選ぶと2つの枠を入れ替えます。空き枠は不戦勝となります。</p>
+            <div id="slotList" class="slot-list"></div>
+          </section>
+          <section data-step-panel="results" hidden>
+            <div class="section-heading"><h2>試合情報・結果</h2></div>
+            <p class="help">得点から勝者は自動判定しません。日時は日本時間です。結果の訂正時は、影響する勝者・得点の取消を確認します。</p>
+            <div id="matchList" class="match-list"></div>
+          </section>
         </aside>
 
         <section id="previewPanel" class="preview-panel" data-zoom="fit">
-          <div class="preview-toolbar"><div><p class="eyebrow">PREVIEW</p><h2>トーナメント表</h2><p id="pageSummary" class="help"></p></div><div class="preview-actions"><label for="capacity">１ページの枠数<select id="capacity"><option value="8">8枠</option><option value="16" selected>16枠</option><option value="32">32枠</option></select></label><button id="zoomButton" type="button" class="ghost" aria-pressed="false" aria-controls="pages">拡大して見る</button><button id="printButton" class="secondary">印刷する</button><button id="pdfButton" class="primary">PDFをダウンロード</button></div></div>
-          <p id="previewHint" class="preview-hint">文字が小さい場合は「拡大して見る」を押すと、左右にスクロールできます。</p>
+          <div class="preview-toolbar"><div><p class="eyebrow">PREVIEW</p><h2 id="previewTitle">トーナメント表</h2><p id="pageSummary" class="help"></p></div><div class="preview-actions"><label for="capacity">１ページの枠数<select id="capacity"><option value="8">8枠</option><option value="16" selected>16枠</option><option value="32">32枠</option></select></label><button id="zoomButton" type="button" class="ghost" aria-pressed="false" aria-controls="pages">拡大して見る</button><button id="pdfButton" class="primary">PDFをダウンロード</button></div></div>
+          <p id="previewHint" class="preview-hint">PDFは選択中の部門を出力します。文字が小さい場合は「拡大して見る」を押すと、左右にスクロールできます。</p>
           <div id="previewEmpty" class="empty-state"></div>
           <div id="pages" class="pages"></div>
         </section>
